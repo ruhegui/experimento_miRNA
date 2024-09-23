@@ -1,0 +1,16 @@
+sample group
+B1 control
+B2 control
+B3 control
+B4 preT0
+B5 preT0
+B6 preT0
+B7 preT15
+B8 preT15
+B9 preT15
+B10 AterT0
+B11 AterT0
+B12 AterT0
+B13 AterT15
+B14 AterT15
+B15 AterT15

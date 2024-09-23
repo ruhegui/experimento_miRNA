@@ -1,0 +1,16 @@
+files names
+../salmon/B1/quant.sf B1
+../salmon/B2/quant.sf B2
+../salmon/B3/quant.sf B3
+../salmon/B4/quant.sf B4
+../salmon/B5/quant.sf B5
+../salmon/B6/quant.sf B6
+../salmon/B7/quant.sf B7
+../salmon/B8/quant.sf B8
+../salmon/B9/quant.sf B9
+../salmon/B10/quant.sf B10
+../salmon/B11/quant.sf B11
+../salmon/B12/quant.sf B12
+../salmon/B13/quant.sf B13
+../salmon/B14/quant.sf B14
+../salmon/B15/quant.sf B15
