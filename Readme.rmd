@@ -2,7 +2,7 @@
 title: "Readme"
 author: "Guillermo Ruiz-Henares"
 date: "2024-09-23"
-output: html_document
+output: github_document
 ---
 
 ```{r setup, include=FALSE}
