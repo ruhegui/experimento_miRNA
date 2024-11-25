@@ -13,23 +13,22 @@ if(length(new.packages)> 0) {
     }}
 }
 invisible(lapply(list.of.packages, FUN=library, character.only=TRUE))
-rm(list.of.packages, new.packages)
-setwd("/home/guille/RNA/RNA_2024/exp_mirna/exp_miRNA") #main wd
 files = data.frame(read.table(file="Metadata/metadata.txt", header = TRUE, stringsAsFactors = F))
 suppressPackageStartupMessages(library(SummarizedExperiment))
 se = tximeta(files)                   
 se <- addExons(se)
 gse <- summarizeToGene(se, assignRanges="abundant") #Asigna rangos según la isoforma más abundante de los transcritos en vez de desde la isoforma más en 5' a la isoforma más en 3'. Los creadores lo recomiendan.
-gse <- addIds(gse, "GENENAME", gene=TRUE)
-gse <- addIds(gse, "SYMBOL", gene=TRUE)
-gse <- addIds(gse, "ENTREZID", gene = TRUE)
 y <- makeDGEList(gse)
 rm(se)
-sampleinfo <- read.delim(file ="Metadata/sampleinfo.txt", sep = " ")
-sampleinfo[,2]
-group = sampleinfo$group
-group <- factor(group)
+sampleinfo <- read.delim(file ="Metadata/sampleinfo.txt", sep = ",")
+group = paste0(sampleinfo[,1],sampleinfo[,2])
+group[1:3] = rep("control",3)
+group = factor(group) %>% relevel(., ref = "control")
+term = factor(sampleinfo[,1]) %>% relevel(., ref = "control")
+time = factor(sampleinfo[,2]) %>% relevel(., ref = "control")
 y$samples$group = group
+y$samples$term = term
+y$samples$time = time
 y$samples
 
 design = model.matrix(~0 + group)
@@ -38,8 +37,8 @@ print(design)
 keep <- filterByExpr(y, design)
 print(summary(keep))
 y <- y[keep, ]
-points <- c(1:5) # Formas
-colors <- c(1:5) #Colores
+points <- c(1:3) # Formas
+colors <- c(1:3) #Colores
 mds = plotMDS(y, col=colors[group], pch=points[group])
 
 mds_data <- data.frame(
@@ -65,46 +64,54 @@ plotBCV(y)
 fit <- glmQLFit(y, design, method = "ROBUST")
 plotQLDisp(fit)
 logcpm = cpm(y, log=TRUE)
-rownames(logcpm) = y$genes$SYMBOL #Nombre de genes
+rownames(logcpm) = y$genes$gene_name #Nombre de genes
 colnames(logcpm) =  paste(y$samples$group, 1:3, sep = "-")
-group
-contrast = makeContrasts(
-  ATvsPreT = "((AterT0 + AterT15) - (preT0 + preT15))", #1
-  T15vsT0 = "(AterT15 + preT15) - (AterT0 + preT0)", #2
-  AT15vs0 = "AterT15 - AterT0", #3
-  PreT15vs0 = "preT15 - preT0", #4
-  AvsPreT15 = "AterT15 - preT15", #5
-  AvsPreT0 = "AterT0 - preT0", #6
-  "preT15 - control", #7
-  levels=design)
-colnames(contrast)[1]
-res <- glmQLFTest(fit, contrast = contrast[,6])
-res_corrected = topTags(res, n = Inf)
-res$comparison
-head(res_corrected, 20)
-is.de = decideTests(res, adjust.method = "BH", p.value = 0.05, lfc = 1)
-plotMD(res, status = is.de)
-
-data = res_corrected$table
-data$DE <- "NO"
-data$DE[data$logFC > 1 & data$PValue < 0.05] <- "UP"
-data$DE[data$logFC < -1 & data$PValue < 0.05] <- "DOWN"
-ggplot(data = data, aes(x=logFC, y =-log10(PValue), col=DE, label = ifelse(abs(logFC) >= 2 & PValue <0.05, as.character(SYMBOL),  ''))) + geom_point() +
-  geom_text_repel(hjust = 0, nudge_x = 0.1, color = "black") +
-  theme_minimal() +
-  labs(title = as.character(res$comparison)) +
-  geom_hline(yintercept=-log10(0.05)) +
-  geom_vline(xintercept=1) +
-  geom_vline(xintercept=-1)
-colnames(res_corrected)
-res_corrected$table[1,c(2,5)]
-setwd("Results/")
-experimento = "exp_miRNA"
-dir.create(experimento, showWarnings = FALSE)
-if (!file.exists(paste0(experimento, "/",make.names(ProfessR::fix.names(res$comparison)), ".xlsx"))) {
-  write.xlsx2(x = res_corrected[!is.na(res_corrected$table$gene_name) & res_corrected$table$PValue <= 0.05 ,c(2,5,16,18,19)], file = paste0(experimento, ".xlsx"), sheetName = colnames(contrast)[6], col.names = T, row.names = F, append = TRUE, )
-  } else {
-  print("Ya existe")
+pairwisecomb = combn(levels(group), 2, function(x) paste(x[2], "-", x[1], sep = "")); pairwisecomb
+contrast = makeContrasts(contrasts = pairwisecomb, levels=design)
+RESs = vector(length = length(pairwisecomb))
+names(RESs) = colnames(contrast)
+for (i in c(1:length(RESs))){
+  RESs[i] = topTags(glmQLFTest(fit, contrast = contrast[,i]), n = Inf)
 }
-setwd("..")
-?write.xlsx2
+DEGs = lapply(RESs, function(i) i %>% dplyr::filter(FDR <=0.1 ) %>% dplyr::select(description, gene_name, entrezid, logFC, PValue, FDR))
+DEGs = DEGs[lapply(DEGs,nrow)>0]
+data = lapply(RESs, function(i) i %>%
+                dplyr::mutate(DE = case_when(logFC > 0 & FDR <0.1 ~ "UP",
+                                             logFC < 0 & FDR <0.1 ~ "DOWN",
+                                             .default = "NO")))
+volcanoplot = function(data, name){
+  ggplot(data = data, aes(x=logFC, y =-log10(PValue), col=DE)) + geom_point() +
+    scale_color_manual(values = c("DOWN" = "firebrick", "UP" = "dodgerblue", "NO" = "grey")) +
+    labs(title = name) +
+    theme_minimal()
+}
+plots <- lapply(names(data), function(name) {
+  volcanoplot(data[[name]], name)
+})
+combined_plot <- wrap_plots(plots)
+print(combined_plot)
+
+DEGs
+
+DEG_selection = lapply(DEGs, function(i)
+  logcpm[na.omit(i$gene_name),])
+heatmap = function(data, samples, rows, title){
+  as.ggplot(pheatmap(data[c(1:min(rows, 100)),samples], scale = "row", 
+                     clustering_method = "complete",
+                     display_numbers = F,
+                     border_color = NA, cluster_cols = T, cutree_cols = 2, cutree_rows = 2, show_rownames = T,
+                     #annotation_col = annotation, show_rownames = F, annotation_names_col = F,
+                     #annotation_row = setNames(data.frame(Cluster = as.factor(cutree(q$tree_row, k=2))), "Cluster"), 
+                     annotation_names_row = F, main = title,
+                     legend_labels = F,))
+}
+
+heatplots = lapply(names(DEG_selection[unlist(lapply(DEG_selection, is.matrix))]), function(name) {
+  string = str_split_1(name, pattern = "-")
+  cols = grep(paste0("\\b", string, "\\b", collapse = "|"), y$samples$group)
+  heatmap(DEG_selection[[name]], cols, nrow(DEG_selection[[name]]), name)
+  
+})
+
+combined_heatplot <- wrap_plots(heatplots)
+print(combined_heatplot)

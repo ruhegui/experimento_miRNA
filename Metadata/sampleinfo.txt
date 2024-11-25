@@ -1,16 +1,16 @@
-sample group
-B1 control
-B2 control
-B3 control
-B4 preT0
-B5 preT0
-B6 preT0
-B7 preT15
-B8 preT15
-B9 preT15
-B10 AterT0
-B11 AterT0
-B12 AterT0
-B13 AterT15
-B14 AterT15
-B15 AterT15
+term,time
+B1,control,control
+B2,control,control
+B3,control,control
+B4,pre,T0
+B5,pre,T0
+B6,pre,T0
+B7,pre,T15
+B8,pre,T15
+B9,pre,T15
+B10,Ater,T0
+B11,Ater,T0
+B12,Ater,T0
+B13,Ater,T15
+B14,Ater,T15
+B15,Ater,T15
